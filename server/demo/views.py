@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.http import HttpResponse
+import json
 import os
 import pymongo
 from py2neo import Graph, Node, Relationship, NodeMatcher, RelationshipMatcher
@@ -151,3 +152,44 @@ def upload(request):
                 tx.create(rel)
         tx.commit()
         return Response({"result": "upload successfully!"}, status=status.HTTP_200_OK)
+
+@api_view(["POST"])
+def query(request):
+    data = request.data
+    keyword = data['keyword'].strip()
+    if len(keyword) == 0:
+        query_res = col.find()
+        res_return = []
+        for res in query_res:
+            res["_id"] = str(res["_id"])
+            res_return.append(res)
+        return Response({"result": res_return}, status=status.HTTP_200_OK )
+
+
+    res = []
+    query_res = col.find({"basic.name":{"$regex":".*{}.*".format(keyword)}})
+    if query_res is None:
+        return Response({"result":res}, status=status.HTTP_200_OK)
+    else:
+        for post in query_res:
+            post["_id"] = str(post["_id"])
+            res.append(post)
+            print(res)
+        return Response({"result":res}, status=status.HTTP_200_OK)
+
+@api_view(["GET"])
+def getall(request):
+    if request.method == "GET":
+        #ret = col.find({}, {"_id": 0, "basic.name": 1, "basic.gender":1,"basic.phone":1,"basic.age":1,"basic.addr1":1,"basic.addr2":1,"basic.personal_id":1}).distinct("basic.personal_id")
+        ret = col.find()
+        json_list = []
+        for i in ret.distinct("basic.personal_id"):
+            ret2 = col.find_one({"basic.personal_id":i})
+            json_list.append(ret2["basic"])
+        ret1 = json.dumps(json_list)
+        response = HttpResponse(ret1, content_type="application/json",status=status.HTTP_200_OK)
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+        response["Access-Control-Max-Age"] = "1000"
+        response["Access-Control-Allow-Headers"] = "*"
+        return response
